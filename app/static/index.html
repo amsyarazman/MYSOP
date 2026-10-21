@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#193d30" />
+    <title>MYSOP · The recipe for consistency</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a href="/" class="brand"
+        ><span class="brand-icon">m.</span> MYSOP<span class="brand-dot"
+          >®</span
+        ></a
+      >
+      <p class="workspace-label">YOUR WORKSPACE</p>
+      <label class="sr-only" for="teams">Team</label
+      ><select id="teams">
+        <option value="">Preview kitchen</option>
+      </select>
+      <nav>
+        <button class="nav active" data-view="published">
+          <span>▦</span> SOP library
+          <span class="nav-count" id="nav-count">3</span></button
+        ><button class="nav" data-view="drafts"><span>▤</span> My drafts</button
+        ><button class="nav" data-view="approvals" id="approvals-nav" hidden>
+          <span>✓</span> Approvals</button
+        ><button class="nav" id="team-button">
+          <span>♧</span> Team & invitations
+        </button>
+      </nav>
+      <div class="sidebar-note">
+        <span>✳</span>
+        <h3>Great teams.<br />Consistent results.</h3>
+        <p>One shared way to make<br />every order a great one.</p>
+      </div>
+      <div class="profile">
+        <div class="avatar">M</div>
+        <div>
+          <strong id="profile-name">Your kitchen, connected</strong
+          ><small id="profile-status">Explore the foundation</small>
+        </div>
+      </div>
+    </aside>
+    <div class="shell">
+      <header>
+        <div class="breadcrumb">
+          Workspace <span>/</span> <strong>SOP library</strong>
+        </div>
+        <div class="header-right">
+          <button id="logout" class="button small" hidden aria-label="Sign out">
+            Sign out
+          </button>
+          <span id="connection" class="connection">● Sample preview</span
+          ><button id="auth-button" class="button small">
+            Sign in <span>→</span>
+          </button>
+        </div>
+      </header>
+      <main>
+        <div id="preview-banner" class="preview-banner">
+          <span>✦ &nbsp; A little taste of MYSOP. These are sample SOPs.</span
+          ><button id="get-started">Create your workspace →</button>
+        </div>
+        <section class="page-heading">
+          <div>
+            <p class="eyebrow">A LITTLE STRUCTURE. A LOT OF CONSISTENCY.</p>
+            <h1 id="page-title">Your kitchen playbook<span>.</span></h1>
+            <p class="subtitle">
+              Every recipe, every step. One shared standard for your team.
+            </p>
+          </div>
+          <button id="new-sop" class="button primary">
+            <span>＋</span> Create SOP
+          </button>
+        </section>
+        <section class="stats" aria-label="Library overview">
+          <div>
+            <span class="stat-icon">▦</span>
+            <div>
+              <small>Published SOPs</small><strong id="stat-total">03</strong>
+            </div>
+            <span class="stat-note">Your shared standard</span>
+          </div>
+          <div>
+            <span class="stat-icon food">♨</span>
+            <div>
+              <small>Food recipes</small><strong id="stat-food">01</strong>
+            </div>
+            <span class="stat-note">Made with care</span>
+          </div>
+          <div>
+            <span class="stat-icon drink">♧</span>
+            <div>
+              <small>Drink recipes</small><strong id="stat-drink">02</strong>
+            </div>
+            <span class="stat-note">Poured to perfection</span>
+          </div>
+        </section>
+        <section class="library">
+          <div class="library-heading">
+            <h2 id="list-title">
+              The SOP library <span id="list-count">3</span>
+            </h2>
+            <p>Good things start with a clear process.</p>
+          </div>
+          <div class="toolbar">
+            <div class="tabs" role="group" aria-label="Category filter">
+              <button class="selected" data-category="all">All SOPs</button
+              ><button data-category="food">♨ &nbsp; Food</button
+              ><button data-category="drink">♧ &nbsp; Drinks</button>
+            </div>
+            <label class="search"
+              ><span>⌕</span
+              ><input
+                id="search"
+                type="search"
+                placeholder="Search your SOPs…"
+                aria-label="Search SOPs"
+              /><kbd>⌘ K</kbd></label
+            >
+          </div>
+          <div id="cards" class="cards"></div>
+          <div id="empty" class="empty" hidden>
+            <span>✳</span>
+            <h3>A fresh start for your kitchen.</h3>
+            <p>Create your first SOP, or try another search.</p>
+          </div>
+        </section>
+        <footer>
+          <span><b>m.</b> A better way to work, together.</span
+          ><span>Made for the people behind every plate.</span>
+        </footer>
+      </main>
+    </div>
+    <dialog id="auth-dialog" aria-labelledby="auth-title">
+      <form id="auth-form">
+        <div class="modal-heading">
+          <div>
+            <p class="eyebrow">WELCOME TO MYSOP</p>
+            <h2 id="auth-title">Welcome back.</h2>
+          </div>
+          <button type="button" class="close" data-close aria-label="Close">
+            ×
+          </button>
+        </div>
+        <p class="muted">Your team's best work starts here.</p>
+        <label
+          >Email<input
+            name="email"
+            type="email"
+            required
+            autocomplete="email"
+            placeholder="you@yourkitchen.com" /></label
+        ><label
+          >Password<input
+            name="password"
+            type="password"
+            minlength="10"
+            maxlength="128"
+            required
+            autocomplete="current-password"
+            placeholder="At least 10 characters"
+        /></label>
+        <p class="form-error" role="alert"></p>
+        <button class="button primary full" type="submit" id="auth-submit">
+          Sign in</button
+        ><button class="text-button full" type="button" id="toggle-auth">
+          New here? Create an account
+        </button>
+      </form>
+    </dialog>
+    <dialog id="team-dialog" aria-labelledby="team-title">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">BETTER TOGETHER</p>
+          <h2 id="team-title">Your team workspace.</h2>
+        </div>
+        <button class="close" data-close aria-label="Close">×</button>
+      </div>
+      <form id="team-form">
+        <label
+          >Create a new team<input
+            name="name"
+            placeholder="e.g. The Corner Kitchen"
+            maxlength="120"
+            required /></label
+        ><button class="button primary" type="submit">Create team</button>
+        <p class="form-error" role="alert"></p>
+      </form>
+      <hr />
+      <form id="join-form">
+        <label
+          >Have an invitation?<input
+            name="invitation_token"
+            placeholder="Paste your invitation token"
+            required /></label
+        ><button class="button" type="submit">Join team</button>
+        <p class="form-error" role="alert"></p>
+      </form>
+      <section id="invite-section" hidden>
+        <hr />
+        <h3>Team access</h3>
+        <div id="member-list"></div>
+        <h3>Invite a teammate</h3>
+        <label for="invite-role">Access level</label
+        ><select id="invite-role">
+          <option value="staff">Staff — prepare & acknowledge</option>
+          <option value="supervisor">Supervisor — create & submit SOPs</option>
+        </select>
+        <p class="muted">Single-use invitation. Expires in 24 hours.</p>
+        <button class="button" id="invite-button">Generate invitation</button
+        ><label id="invite-result" hidden
+          >Share securely<input readonly id="invite-token"
+        /></label>
+        <p id="invite-error" class="form-error" role="alert"></p>
+      </section>
+    </dialog>
+    <dialog id="editor-dialog" class="wide" aria-labelledby="editor-title">
+      <form id="editor-form" novalidate>
+        <div class="modal-heading">
+          <div>
+            <p class="eyebrow">FROM YOUR KITCHEN, FOR YOUR TEAM</p>
+            <h2 id="editor-title">Create an SOP.</h2>
+          </div>
+          <button type="button" class="close" data-close aria-label="Close">
+            ×
+          </button>
+        </div>
+        <ol class="wizard-progress" aria-label="Creation progress">
+          <li>1 · Basics</li>
+          <li>2 · Ingredients</li>
+          <li>3 · Method</li>
+          <li>4 · Review</li>
+        </ol>
+        <p id="editor-notice" class="notice" hidden></p>
+        <fieldset data-panel="0">
+          <legend tabindex="-1">Make it recognisable</legend>
+          <p class="muted">
+            Choose a category and a clear name your team can find.
+          </p>
+          <div class="form-row">
+            <label
+              >SOP name<input
+                name="title"
+                required
+                maxlength="160"
+                placeholder="e.g. Signature iced latte" /></label
+            ><label
+              >Category<select name="category">
+                <option value="drink">Drink</option>
+                <option value="food">Food</option>
+              </select></label
+            >
+          </div>
+          <label
+            >Description<textarea
+              name="description"
+              maxlength="4000"
+              placeholder="What makes this recipe special?"
+            ></textarea>
+          </label>
+          <div class="form-row">
+            <label
+              >Servings<input
+                type="number"
+                name="servings"
+                value="1"
+                min="1"
+                max="10000"
+                required /></label
+            ><label
+              >Cost currency<select name="currency">
+                <option>MYR</option>
+                <option>SGD</option>
+                <option>USD</option>
+                <option>EUR</option>
+                <option>GBP</option>
+              </select></label
+            >
+          </div>
+        </fieldset>
+        <fieldset data-panel="1" hidden>
+          <legend tabindex="-1">Ingredients & costing</legend>
+          <p class="muted">
+            Enter the recipe amount. For costing, enter the pack size in the
+            <strong>same unit</strong> and the price you pay per pack. Example:
+            200 ml milk from a 1,000 ml pack costing MYR 8.00 = MYR 1.60. Leave
+            both price fields empty when unknown.
+          </p>
+          <div class="section-label">
+            <h3>Recipe ingredients</h3>
+            <button type="button" id="add-ingredient" class="text-button">
+              ＋ Add ingredient
+            </button>
+          </div>
+          <div id="ingredients"></div>
+          <div id="cost-estimate" class="cost-summary" aria-live="polite"></div>
+        </fieldset>
+        <fieldset data-panel="2" hidden>
+          <legend tabindex="-1">A clear way to prepare</legend>
+          <label
+            >Preparation steps <small>One step per line, in order.</small
+            ><textarea
+              name="steps"
+              rows="6"
+              required
+              placeholder="Measure the ingredients.&#10;Prepare and serve."
+            ></textarea></label
+          ><label
+            >Allergens
+            <small
+              >Separate with commas. Verify all allergens before serving.</small
+            ><input name="allergens" placeholder="Milk, nuts…" /></label
+          ><label
+            >Safety & storage notes<textarea
+              name="safety_notes"
+              maxlength="4000"
+              placeholder="Storage, handling and hygiene instructions"
+            ></textarea>
+          </label>
+        </fieldset>
+        <fieldset data-panel="3" hidden>
+          <legend tabindex="-1">Review before sharing</legend>
+          <div id="editor-review"></div>
+          <p class="muted" id="publish-help"></p>
+        </fieldset>
+        <p class="form-error" role="alert"></p>
+        <div class="form-actions">
+          <button class="button" type="button" id="wizard-back">← Back</button
+          ><button class="button primary" type="button" id="wizard-next">
+            Next →</button
+          ><button
+            class="button"
+            type="submit"
+            name="action"
+            value="draft"
+            id="save-draft"
+            hidden
+          >
+            Save draft</button
+          ><button
+            class="button primary"
+            type="submit"
+            name="action"
+            value="publish"
+            id="save-publish"
+            hidden
+          >
+            Save & publish →
+          </button>
+        </div>
+        <p class="muted fine">
+          Complete all steps to save. Drafts stay private until submitted for
+          owner review.
+        </p>
+      </form>
+    </dialog>
+    <dialog id="detail-dialog" class="wide" aria-labelledby="detail-title">
+      <div id="version-warning" class="notice" hidden></div>
+      <div id="detail-content"></div>
+      <div id="detail-actions"></div>
+      <button class="button full" data-close>Back to library</button>
+    </dialog>
+    <dialog
+      id="prep-dialog"
+      class="wide prep-dialog"
+      aria-labelledby="prep-title"
+    >
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">KITCHEN PREPARATION</p>
+          <h2 id="prep-title"></h2>
+        </div>
+        <button class="close" data-close aria-label="Close preparation">
+          ×
+        </button>
+      </div>
+      <p id="prep-version" class="muted"></p>
+      <p id="prep-warning" class="notice" hidden>
+        A newer version has been published. Reopen the recipe before continuing.
+      </p>
+      <progress id="prep-progress" max="1" value="0"></progress>
+      <p id="prep-position" class="eyebrow"></p>
+      <p id="prep-step" aria-live="polite"></p>
+      <div class="form-actions">
+        <button class="button" id="prep-back">← Previous step</button
+        ><button class="button primary" id="prep-next">Next step →</button>
+      </div>
+      <p class="muted fine">
+        Preparation progress is local to this session. It is separate from
+        acknowledging a recipe update.
+      </p>
+    </dialog>
+    <div id="toast" role="status" hidden></div>
+  </body>
+</html>

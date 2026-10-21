@@ -1,0 +1,13 @@
+[project]
+name = "mysop-core"
+version = "0.3.0"
+description = "Python web app for team food and drink SOPs"
+requires-python = ">=3.12"
+dependencies = ["fastapi", "uvicorn[standard]", "pwdlib[argon2]"]
+
+[project.optional-dependencies]
+test = ["pytest", "httpx"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

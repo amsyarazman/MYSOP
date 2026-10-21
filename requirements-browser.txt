@@ -1,0 +1,2 @@
+# Optional browser acceptance tests; system Chromium must also be installed.
+playwright==1.64.0
