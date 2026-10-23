@@ -1261,3 +1261,52 @@ legend {
   max-width: 135px;
   padding: 8px;
 }
+
+/* Kitchen SOP reader: fixed viewport with measured, accessible pages. */
+.recipe-photo { width: 100%; height: 100%; object-fit: cover; aspect-ratio: 1; }
+.card-art:has(.recipe-photo) { aspect-ratio: 1; height: auto; }
+.card-art .recipe-photo { position: absolute; inset: 0; }
+.photo-preview { display: block; width: 128px; height: 128px; object-fit: cover; border-radius: 12px; margin: 12px 0; }
+.photo-preview[hidden] { display: none; }
+.ingredient-note { grid-column: 1 / -1; }
+.material-price { border-bottom: 1px solid var(--line); padding: 12px 0; }
+.material-price p { margin: 0; font-size: 14px; }
+.extra-cost-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: center; }
+#bom-dialog h3 { margin-top: 24px; }
+.reader-ingredient { display: flex; gap: 16px; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 10px 0; overflow-wrap: anywhere; }
+.reader-ingredient strong { text-align: right; font-weight: 500; }
+.reader-ingredient span, .reader-ingredient strong { min-width: 0; }
+#detail-dialog.sop-reader[open] { display: flex; flex-direction: column; gap: 8px; width: min(620px, calc(100vw - 16px)); height: min(940px, calc(100dvh - 16px)); max-height: calc(100dvh - 16px); overflow: hidden; padding: 16px; box-sizing: border-box; }
+.sop-reader #detail-content { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 6px; }
+.sop-reader .modal-heading { flex: 0 0 auto; }
+.sop-reader .modal-heading h2 { font: 600 19px/1.25 system-ui, sans-serif; overflow-wrap: anywhere; margin: 0; }
+.sop-reader .eyebrow { margin: 0 0 4px; }
+.reader-meta { font-size: 12px; color: var(--muted); margin: 5px 0; }
+#sop-page { flex: 1; min-height: 0; overflow: hidden; font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+#sop-page h3 { font-size: 17px; margin: 12px 0 8px; color: var(--green); }
+#sop-page p { margin: 8px 0; }
+.reader-photo { display: block; object-fit: cover; aspect-ratio: 1; border-radius: 10px; margin: 4px auto 10px; }
+.reader-nav { display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto; gap: 10px; }
+.reader-nav[hidden] { display: none; }
+#sop-position { font-size: 13px; font-variant-numeric: tabular-nums; }
+.sop-reader .button { min-height: 36px; padding: 7px 12px; font-size: 12px; }
+.sop-reader #detail-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex: 0 0 auto; }
+.sop-reader #detail-actions .button { margin: 0; width: 100%; }
+.sop-reader .ack-note { grid-column: 1 / -1; margin: 0; padding: 0; background: none; font-size: 10px; line-height: 1.3; }
+.sop-reader #detail-actions #ack-report { display: none; }
+.sop-reader .owner-bom { flex: 0 0 auto; align-self: flex-end; margin: 0; }
+.sop-reader #version-warning { margin: 0; font-size: 11px; padding: 6px; flex: 0 0 auto; }
+.sop-reader #version-warning .button { min-height: 28px; }
+@media (max-height: 500px) {
+  .sop-reader .modal-heading h2 { font-size: 16px; }
+  .sop-reader .eyebrow { display: none; }
+  .sop-reader .button { min-height: 30px; padding: 4px 8px; }
+  .sop-reader .ack-note { font-size: 9px; }
+  #detail-dialog.sop-reader[open] { gap: 4px; padding: 8px; }
+  .sop-reader .owner-bom { position: absolute; right: 46px; top: 8px; }
+  .sop-reader .modal-heading { padding-right: 150px; }
+}
+@media (max-width: 500px) {
+  .extra-cost-row { grid-template-columns: 1fr 1fr; }
+  .extra-cost-row button { grid-column: 1 / -1; justify-self: end; }
+}

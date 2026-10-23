@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#193d30" />
     <title>MYSOP · The recipe for consistency</title>
     <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/kitchen.js" defer></script>
     <script src="/static/app.js" defer></script>
   </head>
   <body>
@@ -271,25 +272,17 @@
                 min="1"
                 max="10000"
                 required /></label
-            ><label
-              >Cost currency<select name="currency">
-                <option>MYR</option>
-                <option>SGD</option>
-                <option>USD</option>
-                <option>EUR</option>
-                <option>GBP</option>
-              </select></label
             >
           </div>
+          <label>Recipe photo<input id="photo-input" type="file" accept="image/jpeg,image/png,image/webp"></label>
+          <p class="muted">Centre-cropped to a square, up to 512 × 512 pixels and 150 KB.</p>
+          <img id="photo-preview" class="photo-preview" alt="Recipe photo preview" hidden>
+          <button id="remove-photo" class="button" type="button" hidden>Remove photo</button>
+          <p id="photo-status" role="status" class="muted"></p>
         </fieldset>
         <fieldset data-panel="1" hidden>
-          <legend tabindex="-1">Ingredients & costing</legend>
-          <p class="muted">
-            Enter the recipe amount. For costing, enter the pack size in the
-            <strong>same unit</strong> and the price you pay per pack. Example:
-            200 ml milk from a 1,000 ml pack costing MYR 8.00 = MYR 1.60. Leave
-            both price fields empty when unknown.
-          </p>
+          <legend tabindex="-1">Recipe ingredients</legend>
+          <p class="muted">Enter quantities for the recipe. Use Staff measure for instructions such as “Fill cup to Line A”. Procurement prices are managed separately by the owner.</p>
           <div class="section-label">
             <h3>Recipe ingredients</h3>
             <button type="button" id="add-ingredient" class="text-button">
@@ -297,7 +290,7 @@
             </button>
           </div>
           <div id="ingredients"></div>
-          <div id="cost-estimate" class="cost-summary" aria-live="polite"></div>
+
         </fieldset>
         <fieldset data-panel="2" hidden>
           <legend tabindex="-1">A clear way to prepare</legend>
@@ -361,6 +354,9 @@
     <dialog id="detail-dialog" class="wide" aria-labelledby="detail-title">
       <div id="version-warning" class="notice" hidden></div>
       <div id="detail-content"></div>
+      <nav id="detail-page-nav" class="reader-nav" aria-label="SOP pages" hidden>
+        <button id="sop-previous" class="button">← Back</button><span id="sop-position" role="status"></span><button id="sop-next" class="button primary">Next →</button>
+      </nav>
       <div id="detail-actions"></div>
       <button class="button full" data-close>Back to library</button>
     </dialog>
@@ -394,6 +390,20 @@
         acknowledging a recipe update.
       </p>
     </dialog>
+    <dialog id="bom-dialog" class="wide" aria-labelledby="bom-title">
+      <form id="bom-form">
+        <div class="modal-heading"><div><p class="eyebrow">OWNER ONLY</p><h2 id="bom-title">Bill of Materials</h2></div><button class="close" type="button" data-close aria-label="Close costing">×</button></div>
+        <p id="bom-recipe" class="muted"></p>
+        <p class="muted">Working prices for this SOP. Cost changes do not change published instructions or staff acknowledgments.</p>
+        <label>Currency<select name="currency"><option>MYR</option><option>SGD</option><option>USD</option><option>EUR</option><option>GBP</option></select></label>
+        <h3>Ingredient costs</h3><p class="muted">Enter pack size in the same unit and the price per pack. Leave both blank when unknown.</p><div id="bom-prices"></div>
+        <div class="section-label"><h3>Other costs per serving</h3><button type="button" id="add-other-cost" class="text-button">＋ Add other cost</button></div>
+        <p class="muted">For example packaging, labour or overhead. Each amount is for one serving.</p><div id="bom-extras"></div>
+        <div id="bom-summary" aria-live="polite"></div><p class="form-error" role="alert"></p>
+        <button class="button primary" type="submit">Save costing</button>
+      </form>
+    </dialog>
+    <dialog id="report-dialog" class="wide" aria-label="Team read status"><button class="close" data-close aria-label="Close read status">×</button><div id="ack-report"></div></dialog>
     <div id="toast" role="status" hidden></div>
   </body>
 </html>

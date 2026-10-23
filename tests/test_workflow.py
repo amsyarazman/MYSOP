@@ -27,24 +27,40 @@ def priced_recipe(title='Kitchen latte'):
         {'name': 'Coffee', 'quantity': 20, 'unit': 'g', 'pack_quantity': 1000, 'pack_cost': 60}]}
 
 
+
+def operational_recipe(title='Kitchen latte'):
+    body = priced_recipe(title)
+    body.pop('currency')
+    for ingredient in body['ingredients']:
+        ingredient.pop('pack_quantity')
+        ingredient.pop('pack_cost')
+    return body
+
+
 def test_supervisor_submission_owner_approval_cost_and_acknowledgment(workflow):
     c, owner, supervisor, staff, root = workflow
-    sop = c.post(root + '/sops', headers=supervisor, json=priced_recipe()).json()['id']
+    sop = c.post(root + '/sops', headers=supervisor, json=operational_recipe()).json()['id']
     assert c.post(root + f'/sops/{sop}/publish?expected_revision=1', headers=supervisor).status_code == 403
     sub = c.post(root + f'/sops/{sop}/submit?expected_revision=1', headers=supervisor).json()['id']
     assert c.post(root + f'/sops/{sop}/submit?expected_revision=1', headers=supervisor).json()['id'] == sub
     assert c.get(root + '/sops', headers=staff).json() == []
-    assert c.put(root + f'/sops/{sop}?expected_revision=1', headers=supervisor, json=priced_recipe('changed')).status_code == 409
+    assert c.put(root + f'/sops/{sop}?expected_revision=1', headers=supervisor, json=operational_recipe('changed')).status_code == 409
     assert c.get(root + '/drafts', headers=supervisor).json()[0]['status'] == 'pending'
     queue = c.get(root + '/submissions', headers=owner).json()
-    assert queue[0]['costing']['total'] == '2.80'
-    assert queue[0]['costing']['per_serving'] == '1.40'
+    assert 'costing' not in queue[0]
+    assert c.put(root + f'/sops/{sop}/bom?expected_revision=0', headers=owner, json={
+        'currency': 'MYR', 'prices': [{k: i[k] for k in ('name', 'unit', 'pack_quantity', 'pack_cost')} for i in priced_recipe()['ingredients']]
+    }).status_code == 200
+    bill = c.get(root + f'/sops/{sop}/bom', headers=owner).json()
+    assert bill['costing']['total'] == '2.80'
+    assert bill['costing']['per_serving'] == '1.40'
     assert c.post(root + f'/submissions/{sub}/approve', headers=supervisor).status_code == 403
     assert c.post(root + f'/submissions/{sub}/approve', headers=owner).json()['version'] == 1
     assert c.post(root + f'/submissions/{sub}/approve', headers=owner).status_code == 409
     assert c.get(root + '/submissions', headers=owner).json() == []
     published = c.get(root + '/sops', headers=staff).json()[0]
-    assert published['costing']['total'] == '2.80'
+    assert 'costing' not in published
+    assert all('pack_cost' not in i for i in published['content']['ingredients'])
     assert published['acknowledged_at'] is None
     ack = root + f'/sops/{sop}/versions/1/acknowledge'
     assert c.post(ack, headers=staff).status_code == 200
@@ -54,7 +70,7 @@ def test_supervisor_submission_owner_approval_cost_and_acknowledgment(workflow):
     report = c.get(root + f'/sops/{sop}/acknowledgments', headers=owner).json()
     assert next(m for m in report['members'] if m['role'] == 'staff')['acknowledged_at'] == timestamp
     # A new approval retains immutable history and requires a fresh acknowledgment.
-    assert c.put(root + f'/sops/{sop}?expected_revision=1', headers=supervisor, json=priced_recipe('Latte v2')).status_code == 200
+    assert c.put(root + f'/sops/{sop}?expected_revision=1', headers=supervisor, json=operational_recipe('Latte v2')).status_code == 200
     sub2 = c.post(root + f'/sops/{sop}/submit?expected_revision=2', headers=supervisor).json()['id']
     c.post(root + f'/submissions/{sub2}/approve', headers=owner)
     current = c.get(root + '/sops', headers=staff).json()[0]
@@ -64,7 +80,7 @@ def test_supervisor_submission_owner_approval_cost_and_acknowledgment(workflow):
 
 def test_returned_submission_requires_revision_and_keeps_owner_notes(workflow):
     c, owner, supervisor, staff, root = workflow
-    sop = c.post(root + '/sops', headers=supervisor, json=priced_recipe()).json()['id']
+    sop = c.post(root + '/sops', headers=supervisor, json=operational_recipe()).json()['id']
     sub = c.post(root + f'/sops/{sop}/submit?expected_revision=1', headers=supervisor).json()['id']
     assert c.post(root + f'/submissions/{sub}/return', headers=owner, json={'note': ' '}).status_code == 422
     assert c.post(root + f'/submissions/{sub}/return', headers=owner, json={'note': 'Specify milk storage temperature.'}).status_code == 200
@@ -72,7 +88,7 @@ def test_returned_submission_requires_revision_and_keeps_owner_notes(workflow):
     assert draft['status'] == 'changes_requested' and 'temperature' in draft['review_note']
     assert c.get(root + '/sops', headers=staff).json() == []
     assert c.post(root + f'/sops/{sop}/submit?expected_revision=1', headers=supervisor).status_code == 409
-    assert c.put(root + f'/sops/{sop}?expected_revision=1', headers=supervisor, json=priced_recipe()).status_code == 200
+    assert c.put(root + f'/sops/{sop}?expected_revision=1', headers=supervisor, json=operational_recipe()).status_code == 200
     assert c.post(root + f'/sops/{sop}/submit?expected_revision=1', headers=supervisor).status_code == 409
     assert c.post(root + f'/sops/{sop}/submit?expected_revision=2', headers=supervisor).status_code == 201
 
@@ -83,7 +99,7 @@ def test_role_boundaries_cross_team_review_and_invalid_versions(workflow):
     assert c.get(root + '/submissions', headers=staff).status_code == 403
     assert c.get(root + '/submissions', headers=supervisor).status_code == 403
     assert c.post(root + '/invitations', headers=owner, json={'role': 'owner'}).status_code == 422
-    sop = c.post(root + '/sops', headers=supervisor, json=priced_recipe()).json()['id']
+    sop = c.post(root + '/sops', headers=supervisor, json=operational_recipe()).json()['id']
     assert c.post(root + f'/sops/{sop}/submit?expected_revision=1', headers=staff).status_code == 403
     sub = c.post(root + f'/sops/{sop}/submit?expected_revision=1', headers=supervisor).json()['id']
     other = c.post('/teams', headers=owner, json={'name': 'Other'}).json()['id']
@@ -125,7 +141,7 @@ def test_additive_legacy_database_upgrade(tmp_path, monkeypatch):
             with database() as db:
                 assert db.execute('SELECT role FROM members').fetchone()['role'] == 'staff'
                 assert db.execute('SELECT role FROM invites').fetchone()['role'] == 'staff'
-                assert db.execute('PRAGMA user_version').fetchone()[0] == 3
+                assert db.execute('PRAGMA user_version').fetchone()[0] == 4
 
 
 def test_owner_can_promote_existing_staff_and_cannot_demote_owner(workflow):
