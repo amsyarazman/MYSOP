@@ -140,6 +140,7 @@ async function submit(form, fn) {
   }
 }
 function art(content) {
+  if (content.photo_data_url) return `<img class="recipe-photo" src="${escapeHTML(content.photo_data_url)}" alt="${escapeHTML(content.title)}">`;
   if (content.category === "food")
     return '<svg viewBox="0 0 200 160" aria-hidden="true"><ellipse cx="100" cy="91" rx="83" ry="56" fill="#faf8ef"/><ellipse cx="100" cy="91" rx="65" ry="41" fill="#d9dac7"/><path d="M48 61 Q80 29 143 54 L159 115 Q114 144 54 116Z" fill="#a56e3e"/><path d="M54 63 Q85 37 139 59 L151 110 Q111 132 61 111Z" fill="#dbb980"/><path d="M66 68 Q99 49 130 63 L140 103 Q105 121 71 103Z" fill="#8ea55d"/><path d="M78 73 L130 96 M75 84 L123 105 M87 65 L137 87" stroke="#b3c879" stroke-width="10" stroke-linecap="round"/><g fill="#f1e1bd"><circle cx="95" cy="78" r="2"/><circle cx="112" cy="91" r="2"/><circle cx="88" cy="98" r="2"/></g></svg>';
   const matcha = content.title.toLowerCase().includes("matcha");
@@ -174,35 +175,6 @@ function updateRoleUI() {
   $$("[data-view]").forEach((b) =>
     b.classList.toggle("active", b.dataset.view === view),
   );
-}
-function localCost(content) {
-  let known = 0,
-    missing = 0;
-  const lines = content.ingredients.map((i) => {
-    const cost =
-      i.pack_quantity &&
-      i.pack_cost !== null &&
-      i.pack_cost !== undefined &&
-      i.pack_cost !== ""
-        ? (Number(i.quantity) / Number(i.pack_quantity)) * Number(i.pack_cost)
-        : null;
-    if (cost === null) missing++;
-    else known += cost;
-    return { name: i.name, cost: cost === null ? null : cost.toFixed(2) };
-  });
-  return {
-    currency: content.currency || "MYR",
-    lines,
-    missing_prices: missing,
-    known_subtotal: known.toFixed(2),
-    total: missing ? null : known.toFixed(2),
-    per_serving: missing
-      ? null
-      : (known / Number(content.servings || 1)).toFixed(2),
-  };
-}
-function costHTML(cost) {
-  return `<div class="cost-summary"><p>Ingredient cost · ${escapeHTML(cost.currency)}</p><strong>${cost.total !== null ? `${escapeHTML(cost.currency)} ${cost.total}` : "Cost incomplete"}</strong>${cost.per_serving !== null ? `<p>${escapeHTML(cost.currency)} ${cost.per_serving} per serving</p>` : `<p>${cost.missing_prices} ingredient price${cost.missing_prices === 1 ? "" : "s"} missing. Known subtotal: ${escapeHTML(cost.currency)} ${cost.known_subtotal}.</p>`}<p class="fine">Ingredient cost only. Labour, waste, tax and overhead are excluded.</p></div>`;
 }
 function render() {
   updateRoleUI();
@@ -309,11 +281,13 @@ async function showDetail(row, kind = "published") {
   detailRow = row;
   detailKind = kind;
   const c = row.content,
-    cost = row.costing || localCost(c),
     isPublished = kind === "published";
   $("#version-warning").hidden = true;
+  $("#detail-dialog").classList.toggle("sop-reader", isPublished);
+  $("#detail-page-nav").hidden = !isPublished;
   $("#detail-content").innerHTML =
-    `<div class="modal-heading"><div><p class="eyebrow">${kind === "review" ? "OWNER REVIEW" : user ? "YOUR TEAM STANDARD" : "SAMPLE SOP · PREVIEW"}</p><h2 id="detail-title">${escapeHTML(c.title)}</h2></div><button class="close" data-detail-close aria-label="Close">×</button></div><span class="badge">${c.category === "food" ? "Food" : "Drink"}</span><span class="badge">${isPublished ? `Version ${row.version}` : `Revision ${row.revision}`}</span><span class="badge">${c.servings} servings</span>${row.author_email ? `<p class="muted">Submitted by ${escapeHTML(row.author_email)}</p>` : ""}<p class="muted">${escapeHTML(c.description)}</p><h3>Ingredients</h3>${c.ingredients.map((i, index) => `<div class="detail-ingredient"><span>${escapeHTML(i.name)}<br><small>${escapeHTML(i.quantity)} ${escapeHTML(i.unit)}</small></span><strong>${cost.lines[index].cost !== null ? `${escapeHTML(cost.currency)} ${cost.lines[index].cost}` : "Price not entered"}</strong></div>`).join("")}${costHTML(cost)}<h3>Preparation</h3><ol class="detail-steps">${c.steps.map((step) => `<li>${escapeHTML(step)}</li>`).join("")}</ol><h3>Allergens</h3><p class="muted">${escapeHTML(c.allergens.join(", ") || "Not specified — verify before serving.")}</p><h3>Safety & storage</h3><p class="muted">${escapeHTML(c.safety_notes || "No notes provided.")}</p>`;
+    `<div class="modal-heading"><div><p class="eyebrow">${kind === "review" ? "OWNER REVIEW" : "KITCHEN SOP"}</p><h2 id="detail-title">${escapeHTML(c.title)}</h2><p class="reader-meta">${isPublished ? `Version ${row.version}` : `Revision ${row.revision}`} · ${c.servings} serving${c.servings === 1 ? "" : "s"}</p></div><button class="close" data-detail-close aria-label="Close">×</button></div>${isPublished ? '<div id="sop-page" aria-live="polite"></div>' : reviewSOP(c)}${user && team?.role === "owner" ? '<button class="button owner-bom" id="open-bom">Bill of Materials</button>' : ""}`;
+  if ($("#open-bom")) $("#open-bom").onclick = () => openBill(row, kind);
   $("[data-detail-close]").onclick = () => $("#detail-dialog").close();
   $("#detail-actions").innerHTML = "";
   if (kind === "review") {
@@ -347,7 +321,7 @@ async function showDetail(row, kind = "published") {
       '<p class="notice">This submitted draft is locked while awaiting owner review.</p>';
   } else {
     $("#detail-actions").innerHTML =
-      `<button id="start-prep" class="button primary full">Start preparation →</button>${user ? `<div class="ack-note">${row.acknowledged_at ? `You acknowledged version ${row.version}.` : `Version ${row.version} needs your acknowledgment. Confirm you have read the ingredients, method, allergens and safety notes.`}</div><button id="acknowledge" class="button full" ${row.acknowledged_at ? "disabled" : ""}>${row.acknowledged_at ? "Acknowledged" : "I have read this version"}</button>` : '<p class="muted">Sample recipe for exploring the interface. Sign in to use real team SOPs.</p>'}${user && ["owner", "supervisor"].includes(team?.role) ? '<div id="ack-report"></div>' : ""}`;
+      `<button id="start-prep" class="button primary full">Start preparation →</button>${user ? `<div class="ack-note">${row.acknowledged_at ? `You acknowledged version ${row.version}.` : `Version ${row.version} needs your acknowledgment. Confirm you have read the ingredients, method, allergens and safety notes.`}</div><button id="acknowledge" class="button full" ${row.acknowledged_at ? "disabled" : ""}>${row.acknowledged_at ? "Acknowledged" : "I have read this version"}</button>` : '<p class="muted">Sample recipe for exploring the interface. Sign in to use real team SOPs.</p>'}${user && ["owner", "supervisor"].includes(team?.role) ? '<button id="read-report" class="button">Team read status</button>' : ""}`;
     $("#start-prep").onclick = () => startPreparation(row);
     if (user)
       $("#acknowledge").onclick = async () => {
@@ -369,10 +343,14 @@ async function showDetail(row, kind = "published") {
           toast(e.message);
         }
       };
-    if ($("#ack-report")) refreshAcknowledgmentReport(row);
+    if ($("#read-report")) $("#read-report").onclick = () => {
+      $("#report-dialog").showModal();
+      refreshAcknowledgmentReport(row);
+    };
   }
   if (!$("#detail-dialog").open) $("#detail-dialog").showModal();
   $("#detail-dialog").scrollTop = 0;
+  if (isPublished) openReader(c);
 }
 function refreshAcknowledgmentReport(row) {
   const selected = team.id;
@@ -583,6 +561,7 @@ function endSession() {
   $("#detail-actions").innerHTML = "";
   $("#editor-form").reset();
   $("#ingredients").innerHTML = "";
+  clearKitchenPrivateState();
   user = null;
   team = null;
   teams = [];
@@ -614,12 +593,8 @@ function ingredientRow(
 ) {
   const row = document.createElement("div");
   row.className = "ingredient-row";
-  row.innerHTML = `<label class="ingredient-name">Ingredient name<input data-field="name" aria-label="Ingredient name" placeholder="Ingredient" maxlength="160" required value="${escapeHTML(i.name)}"></label><label>Recipe quantity<input data-field="quantity" aria-label="Quantity" type="number" min="0.0001" max="9999999999" step="any" required value="${escapeHTML(i.quantity)}"></label><label>Unit<input data-field="unit" aria-label="Unit" placeholder="g / ml / each" maxlength="40" required value="${escapeHTML(i.unit)}"></label><label>Pack size (same unit)<input data-field="pack_quantity" aria-label="Pack size" type="number" min="0.0001" max="9999999999" step="any" placeholder="e.g. 1000" value="${escapeHTML(i.pack_quantity ?? "")}"></label><label>Pack price<input data-field="pack_cost" aria-label="Pack price" type="number" min="0" max="9999999999" step="0.0001" placeholder="e.g. 8.00" value="${escapeHTML(i.pack_cost ?? "")}"></label><button type="button" class="remove-ingredient" aria-label="Remove ingredient">Remove ingredient ×</button>`;
-  row.querySelector("button").onclick = () => {
-    row.remove();
-    updateCost();
-  };
-  row.addEventListener("input", updateCost);
+  row.innerHTML = `<label class="ingredient-name">Ingredient name<input data-field="name" aria-label="Ingredient name" maxlength="160" required value="${escapeHTML(i.name)}"></label><label>Recipe quantity<input data-field="quantity" aria-label="Quantity" type="number" min="0.0001" max="9999999999" step="any" required value="${escapeHTML(i.quantity)}"></label><label>Unit<input data-field="unit" aria-label="Unit" maxlength="40" required value="${escapeHTML(i.unit)}" placeholder="g / ml / each"></label><label class="ingredient-note">Staff measure (optional)<input data-field="measure_note" aria-label="Staff measure" maxlength="160" value="${escapeHTML(i.measure_note || "")}" placeholder="e.g. Fill cup to Line A"></label><button type="button" class="remove-ingredient" aria-label="Remove ingredient">Remove ingredient ×</button>`;
+  row.querySelector("button").onclick = () => row.remove();
   $("#ingredients").append(row);
 }
 function editorContent() {
@@ -629,7 +604,7 @@ function editorContent() {
     category: form.elements.category.value,
     description: form.elements.description.value,
     servings: Number(form.elements.servings.value),
-    currency: form.elements.currency.value,
+    photo_data_url: photoData,
     ingredients: $$(".ingredient-row").map((row) =>
       Object.fromEntries(
         [...row.querySelectorAll("[data-field]")].map((input) => [
@@ -655,10 +630,6 @@ function editorContent() {
     safety_notes: form.elements.safety_notes.value,
   };
 }
-function updateCost() {
-  const c = editorContent();
-  $("#cost-estimate").innerHTML = costHTML(localCost(c));
-}
 function validatePanel(index) {
   const panel = $(`[data-panel="${index}"]`);
   for (const input of panel.querySelectorAll("input,textarea,select"))
@@ -670,15 +641,7 @@ function validatePanel(index) {
         "Add at least one ingredient.";
       return false;
     }
-    if (
-      content.ingredients.some(
-        (i) => (i.pack_quantity === null) !== (i.pack_cost === null),
-      )
-    ) {
-      $("#editor-form .form-error").textContent =
-        "Enter both pack size and pack price, or leave both empty.";
-      return false;
-    }
+
   }
   if (index === 2 && !editorContent().steps.length) {
     $("#editor-form .form-error").textContent =
@@ -709,11 +672,10 @@ function showWizard(index) {
     team?.role === "owner"
       ? "Publishing makes this version available to your whole team."
       : "Your owner will review the submitted version before it reaches the team. You can also save it as a private draft.";
-  if (index === 1) updateCost();
   if (index === 3) {
     const c = editorContent();
     $("#editor-review").innerHTML =
-      `<h3>${escapeHTML(c.title)}</h3><p>${c.category === "food" ? "Food" : "Drink"} · ${c.servings} servings · ${c.ingredients.length} ingredients · ${c.steps.length} preparation steps</p><p>${escapeHTML(c.description)}</p><ol class="detail-steps">${c.steps.map((s) => `<li>${escapeHTML(s)}</li>`).join("")}</ol>${costHTML(localCost(c))}<p>Allergens: ${escapeHTML(c.allergens.join(", ") || "Not specified — verify before serving.")}</p><p>Safety: ${escapeHTML(c.safety_notes || "No notes entered.")}</p>`;
+      `<h3>${escapeHTML(c.title)}</h3><p>${c.category === "food" ? "Food" : "Drink"} · ${c.servings} servings · ${c.ingredients.length} ingredients · ${c.steps.length} preparation steps</p><p>${escapeHTML(c.description)}</p><ol class="detail-steps">${c.steps.map((s) => `<li>${escapeHTML(s)}</li>`).join("")}</ol><p>Allergens: ${escapeHTML(c.allergens.join(", ") || "Not specified — verify before serving.")}</p><p>Safety: ${escapeHTML(c.safety_notes || "No notes entered.")}</p>`;
   }
   $("#editor-dialog").scrollTop = 0;
   if ($("#editor-dialog").open) $(`[data-panel="${index}"] legend`).focus();
@@ -756,11 +718,16 @@ function openEditor(item = null) {
       "safety_notes",
     ])
       form.elements[key].value = c[key];
-    form.elements.currency.value = c.currency || "MYR";
+
     form.elements.steps.value = c.steps.join("\n");
     form.elements.allergens.value = c.allergens.join(", ");
     c.ingredients.forEach(ingredientRow);
   } else ingredientRow();
+  photoGeneration++;
+  photoBusy = false;
+  photoData = item?.content.photo_data_url || null;
+  $("#photo-input").value = "";
+  renderPhoto();
   showWizard(0);
   $("#editor-dialog").showModal();
 }
@@ -890,6 +857,8 @@ $("#invite-button").onclick = async () => {
   }
 };
 $("#teams").onchange = async (e) => {
+  $$("dialog[open]").forEach(d => d.close());
+  clearKitchenPrivateState();
   team = teams.find((t) => t.id === e.target.value) || null;
   updateRoleUI();
   $("#invite-result").hidden = true;
@@ -933,6 +902,7 @@ $("#editor-form").onsubmit = (e) => {
   if (wizardStep !== 3) return;
   const sharing = e.submitter?.value === "publish";
   submit(e.target, async () => {
+    if (photoBusy) throw Error("Wait for the photo to finish processing.");
     for (let i = 0; i < 3; i++) {
       showWizard(i);
       if (!validatePanel(i)) return;
@@ -964,6 +934,7 @@ $("#editor-form").onsubmit = (e) => {
     );
   });
 };
+setupKitchen();
 if (token)
   signedIn().catch((e) => {
     endSession();

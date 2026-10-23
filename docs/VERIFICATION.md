@@ -1,56 +1,27 @@
-# MYSOP verification — 21 October 2026
+# MYSOP 0.4 verification — 23 October 2026
 
-These checks apply to the uploaded `MYSOP-source.zip`, whose SHA-256 is
-`1cc120137e3d9551c78a80d571ccd8dc832c0777c01237ef96cdbf95def4bf38`.
-It is byte-for-byte identical to the archive on `mysop-download-20261021`
-(commit `fbaaa23750786770156893adda35c72267dc2d59`). Any newer Mac edits outside
-that ZIP are not included. MYSOP includes a browser interface served by FastAPI
-at `/`.
+The next version separates owner costing from operational SOPs, adds compressed square photos and provides a vertical, paginated staff reader.
 
 ## Results
 
-- Ran `bash scripts/install.sh` with Python 3.12.14, installing the locked dependencies and executing all Python tests.
-- The existing static-assets test verified `/`, `/health`, `/static/app.js` and `/static/style.css`; health response: `{"status":"ok"}`.
-- `.venv/bin/python -m pip check`: no broken requirements.
-- `.venv/bin/python -m pytest -q`: **12 passed**. One upstream Starlette TestClient deprecation warning; no failures.
-- `.venv/bin/python scripts/browser_smoke.py`: **passed** using real system Chromium, with desktop (1440×1000), tablet (1024×900) and phone (390×844) browser sessions.
-- Browser workflow covered account registration, role invitations, guided SOP creation and ingredient costing, private drafts, supervisor submission, owner return/revision/approval, live delivery of published SOPs, staff preparation, acknowledgment persistence, publication of a second version, sign-out and signing back into the existing account. No JavaScript page errors or horizontal overflow.
-- Automated workflow tests used temporary databases, separate from the running app's data.
-- Shell syntax checks passed for installation and startup scripts.
+- `bash scripts/install.sh`: installs the updated lockfile including Pillow 13.0.0, checks dependencies and runs the API tests on Python 3.12.14 / Linux.
+- `.venv/bin/python -m pytest -q`: **29 passed**. One upstream Starlette TestClient deprecation warning; no failures.
+- `.venv/bin/python scripts/browser_smoke.py`: **passed** with system Chromium. Three isolated owner/supervisor/staff browser sessions cover registration, role invitations, supervisor authoring with photo upload, private drafts, return/revision/approval, live delivery, preparation, acknowledgment persistence, sign-out and sign-in.
+- The owner browser creates ingredient pack prices and packaging/labour amounts **per serving** in the separate Bill of Materials window. A two-serving recipe totals MYR 4.50 / MYR 2.25 per serving. Supervisor/staff interfaces expose no price inputs or costing window.
+- API tests reject non-owner and cross-team bill reads/writes, reject stale concurrent saves, and verify that normal SOP/draft/review/history/event responses exclude structured cost fields. Cost updates preserve published instructions and staff acknowledgments. Draft and published quantities are costed separately using the same working rates.
+- Photo tests cover publication/restart persistence, square dimensions, file-size limits, corrupt/non-JPEG data, metadata-stripping re-encoding, removal, and detailed image compression. The browser crops a 900 × 600 image into a 512 × 512 square thumbnail.
+- Long-content browser checks traverse every page at **390 × 844**, **320 × 568** and **844 × 390**. They verify no horizontal/vertical overflow in the reader, and that all long procedure, ingredient and safety text remains present across pages. No JavaScript page errors.
+- Legacy database tests preserve original publications and prices through repeated startup and retain subsequently saved owner costs.
+- `pip check`, JavaScript syntax checks and Git whitespace checks pass.
 
-The browser smoke test started and stopped `bash scripts/start.sh` on port 8011
-with a temporary database. No Mac database was available or modified.
+Tests use temporary databases. Existing Mac data has not been accessed or changed. Mac-specific commands are documented but were not executed on a Mac.
 
-The screenshots in this folder were refreshed by the browser test. They are
-records of the working interface, not interactive previews.
+## Screenshots and use
 
-## Browser access
+The browser run refreshes `preview-approval.png`, `preview-staff.png` and `preview-bom.png`. They are records of the actual interface, not public previews. Staff use Next/Back in the SOP reader; authoring, review and costing forms may scroll.
 
-No browser preview or inbound port-forwarding service is attached to this cloud
-environment. Its internal port 8000 is reachable by tools within the environment,
-but no working public preview URL is available. Binding to `0.0.0.0` alone does
-not expose it to your browser. The process must be restarted if the cloud
-environment stops or is restored.
+Install and start with `bash scripts/install.sh` and `bash scripts/start.sh`. Open the app on the same machine; no public cloud preview is configured. For updates to an existing Mac installation, stop the app and follow [UPDATE_MAC.md](UPDATE_MAC.md), retaining the project/database backup and the existing `MYSOP_DB` setting.
 
-For interactive testing, use the source checkout, install Python 3.12 or newer,
-and run the installation/startup commands in
-[OPEN_IN_BROWSER.md](OPEN_IN_BROWSER.md), then open `http://localhost:8000` on
-that same computer. Register an account, create a team, create an SOP and choose
-**Save & publish** as its owner. The published recipe appears in the SOP library.
-Windows PowerShell commands are included in the guide; this verification ran
-on Linux.
+## Review scope
 
-## GitHub preparation
-
-The cloud checkout's `codex/mysop-source-review` branch is based on the existing
-source-archive branch, preserving both its commit and the original `origin/main`
-history and placeholder file. The archive was unpacked into editable source.
-The import includes expanded ignore rules and Mac update guidance. The branch
-replaces the ZIP with editable source, tests, dependencies, scripts and docs so
-the application can be reviewed and installed directly from a clone.
-
-The archive contains application code, tests, locked dependencies, scripts,
-documentation and screenshots. It excludes Git metadata, virtual environments,
-runtime databases, caches, logs and secrets. Future Mac source transfers must
-also exclude those private/runtime files. See
-[UPDATE_MAC.md](UPDATE_MAC.md) for backup and update instructions.
+Branch `codex/mysop-v04-owner-bom` builds on the source-import branch from PR #4, preserving its history. Since PR #4 is still open, the next-version PR targets `codex/mysop-source-review` so reviewers see only the version 0.4 changes. Merge the source import first, then retarget the next-version PR to `main` if needed. No automatic merge or production deployment is performed.

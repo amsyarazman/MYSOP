@@ -32,7 +32,7 @@ backup until you have verified your existing accounts and recipes after updating
 
 ## 2a. If your existing copy is a Git checkout
 
-Use these commands **after the source pull request has merged into `main`**:
+Use these commands **after the source-import and version 0.4 pull requests have merged into `main`**:
 
 ```bash
 cd "$mysop_old"
@@ -67,7 +67,7 @@ run `git init` over the old copy or replace its contents blindly.
 ```bash
 cd "$(dirname "$mysop_old")"
 # Before the PR is merged:
-git clone --branch codex/mysop-source-review https://github.com/amsyarazman/MYSOP.git MYSOP-updated
+git clone --branch codex/mysop-v04-owner-bom https://github.com/amsyarazman/MYSOP.git MYSOP-updated
 # After merge, use a normal clone instead of the command above:
 # git clone https://github.com/amsyarazman/MYSOP.git MYSOP-updated
 ```
@@ -98,6 +98,8 @@ MYSOP will create a fresh database there, which can look like lost data. Copy
 private configuration such as `.env` separately if needed, and restore your
 exported variables or launcher. Recreate `.venv` through the install script;
 virtual environments should not be copied between project paths.
+
+Version 0.4 adds a Bill of Materials table without removing existing users, recipes, versions or acknowledgments. Legacy prices are retained for the owner. New recipe photos and cost records live in the same SQLite database. Install the updated locked dependencies (including Pillow) before starting the new source.
 
 ## 3. Verify and retain a rollback copy
 

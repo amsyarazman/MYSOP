@@ -19,7 +19,9 @@ from fastapi.staticfiles import StaticFiles
 from pwdlib import PasswordHash
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.costing import recipe_cost
+from app.costing import money, recipe_cost
+from app.bom import BillInput, seed_legacy_bill, sop_content
+from app.media import square_photo
 
 passwords = PasswordHash.recommended()
 bearer = HTTPBearer(auto_error=False)
@@ -74,11 +76,23 @@ async def lifespan(app):
             PRIMARY KEY(sop_id,version,user_id), FOREIGN KEY(sop_id,version) REFERENCES publications(sop_id,version));
             CREATE INDEX IF NOT EXISTS events_team_cursor ON events(team_id,id);
             CREATE INDEX IF NOT EXISTS submissions_sop ON submissions(sop_id,revision);
-            PRAGMA user_version=3;''')
+            CREATE TABLE IF NOT EXISTS bills_of_materials(
+            sop_id TEXT PRIMARY KEY REFERENCES sops(id), content TEXT NOT NULL, revision INTEGER NOT NULL);
+            PRAGMA user_version=4;''')
+        for sop in db.execute('SELECT id,draft FROM sops').fetchall():
+            if db.execute('SELECT 1 FROM bills_of_materials WHERE sop_id=?', (sop['id'],)).fetchone():
+                continue
+            seed_legacy_bill(db, sop['id'], json.loads(sop['draft']))
+            # Drafts may have lost prices in a previous edit; preserve historical prices too.
+            if not db.execute('SELECT 1 FROM bills_of_materials WHERE sop_id=?', (sop['id'],)).fetchone():
+                for old in db.execute('SELECT content FROM publications WHERE sop_id=? ORDER BY version DESC', (sop['id'],)):
+                    seed_legacy_bill(db, sop['id'], json.loads(old['content']))
+                    if db.execute('SELECT 1 FROM bills_of_materials WHERE sop_id=?', (sop['id'],)).fetchone():
+                        break
     yield
 
 
-app = FastAPI(title='MYSOP', version='0.3.0', lifespan=lifespan)
+app = FastAPI(title='MYSOP', version='0.4.0', lifespan=lifespan)
 STATIC_DIR = Path(__file__).parent / 'static'
 app.mount('/static', StaticFiles(directory=STATIC_DIR), name='static')
 
@@ -129,6 +143,7 @@ class Ingredient(Model):
     name: str = Field(min_length=1, max_length=160)
     quantity: Decimal = Field(gt=0, max_digits=14, decimal_places=4, allow_inf_nan=False)
     unit: str = Field(min_length=1, max_length=40)
+    measure_note: str = Field(default='', max_length=160)
     pack_quantity: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=4, allow_inf_nan=False)
     pack_cost: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=4, allow_inf_nan=False)
 
@@ -149,6 +164,9 @@ class SOPInput(Model):
     steps: list[str] = Field(min_length=1, max_length=100)
     allergens: list[str] = Field(default_factory=list, max_length=50)
     safety_notes: str = Field(default='', max_length=4000)
+    photo_data_url: str | None = Field(default=None, max_length=200_030)
+
+    _photo = field_validator('photo_data_url')(square_photo)
 
     @field_validator('steps', 'allergens')
     @classmethod
@@ -200,8 +218,8 @@ def find_sop(db, team_id, sop_id, user_id, author=False):
 
 def publication(row):
     content = json.loads(row['content'])
-    return dict(sop_id=row['sop_id'], version=row['version'], content=content,
-                published_at=row['published_at'], publisher_id=row['publisher_id'], costing=recipe_cost(content))
+    return dict(sop_id=row['sop_id'], version=row['version'], content=sop_content(content),
+                published_at=row['published_at'], publisher_id=row['publisher_id'])
 
 
 def emit(db, team_id, payload):
@@ -221,7 +239,7 @@ def publish_snapshot(db, sop_id, team_id, content, user_id):
 
 def draft_record(db, row):
     submission = db.execute('SELECT status, review_note FROM submissions WHERE sop_id=? AND revision=?', (row['id'], row['revision'])).fetchone()
-    return {'id': row['id'], 'revision': row['revision'], 'content': json.loads(row['draft']),
+    return {'id': row['id'], 'revision': row['revision'], 'content': sop_content(json.loads(row['draft'])),
             'status': submission['status'] if submission else 'draft',
             'review_note': submission['review_note'] if submission else ''}
 
@@ -333,13 +351,81 @@ def change_role(team_id: str, member_id: str, body: RoleInput, user=Depends(curr
     return {'id': member_id, 'role': body.role}
 
 
+def check_cost_write(body, role):
+    if role != 'owner' and ('currency' in body.model_fields_set or any(
+        i.pack_cost is not None or i.pack_quantity is not None for i in body.ingredients
+    )):
+        raise HTTPException(403, 'Only the owner can enter costing; use the Bill of Materials window')
+
+
+def bill_record(db, sop, version=None):
+    content = json.loads(sop['draft'])
+    if version is not None:
+        row = db.execute('SELECT content FROM publications WHERE sop_id=? AND version=?', (sop['id'], version)).fetchone()
+        if not row:
+            raise HTTPException(404, 'Published version not found')
+        content = json.loads(row['content'])
+    row = db.execute('SELECT * FROM bills_of_materials WHERE sop_id=?', (sop['id'],)).fetchone()
+    bill = json.loads(row['content']) if row else {'currency': content.get('currency', 'MYR'), 'prices': [], 'other_costs': []}
+    rates = {(p['name'], p['unit']): p for p in bill['prices']}
+    for i in content['ingredients']:
+        if i.get('pack_cost') is not None and i.get('pack_quantity') is not None:
+            rates.setdefault((i['name'], i['unit']), {k: i[k] for k in ('name', 'unit', 'pack_cost', 'pack_quantity')})
+    bill = {**bill, 'prices': list(rates.values())}
+    quantities = {}
+    for i in content['ingredients']:
+        key = (i['name'], i['unit'])
+        quantities[key] = quantities.get(key, Decimal('0')) + Decimal(str(i['quantity']))
+    prices = [{
+        'name': name, 'unit': unit, 'quantity': str(quantity),
+        'pack_quantity': rates.get((name, unit), {}).get('pack_quantity'),
+        'pack_cost': rates.get((name, unit), {}).get('pack_cost'),
+        'recipe_cost': money(quantity / Decimal(str(rates[(name, unit)]['pack_quantity'])) * Decimal(str(rates[(name, unit)]['pack_cost'])))
+        if rates.get((name, unit), {}).get('pack_cost') is not None else None,
+    } for (name, unit), quantity in quantities.items()]
+    return {'sop_id': sop['id'], 'title': content['title'], 'servings': content['servings'],
+            'recipe_version': version, 'recipe_revision': sop['revision'],
+            'revision': row['revision'] if row else 0, 'currency': bill['currency'],
+            'prices': prices, 'other_costs': bill['other_costs'], 'costing': recipe_cost(content, bill)}
+
+
+@app.get('/teams/{team_id}/sops/{sop_id}/bom')
+def get_bill(team_id: str, sop_id: str, version: int | None = Query(default=None, ge=1), user=Depends(current_user)):
+    with database() as db:
+        membership(db, team_id, user['id'], owner=True)
+        return bill_record(db, find_sop(db, team_id, sop_id, user['id']), version)
+
+
+@app.put('/teams/{team_id}/sops/{sop_id}/bom')
+def save_bill(team_id: str, sop_id: str, body: BillInput, expected_revision: int = Query(ge=0),
+              version: int | None = Query(default=None, ge=1), user=Depends(current_user)):
+    with database() as db:
+        db.execute('BEGIN IMMEDIATE')
+        membership(db, team_id, user['id'], owner=True)
+        sop = find_sop(db, team_id, sop_id, user['id'])
+        current = bill_record(db, sop, version)
+        if current['revision'] != expected_revision:
+            raise HTTPException(409, 'Costing changed; reopen the Bill of Materials before saving')
+        # Keep rates for materials in other revisions when editing an older version.
+        previous = db.execute('SELECT content FROM bills_of_materials WHERE sop_id=?', (sop_id,)).fetchone()
+        rates = {(p['name'], p['unit']): p for p in json.loads(previous['content'])['prices']} if previous else {}
+        value = json.loads(body.model_dump_json())
+        rates.update({(p['name'], p['unit']): p for p in value['prices']})
+        value['prices'] = list(rates.values())
+        db.execute('INSERT INTO bills_of_materials VALUES(?,?,?) ON CONFLICT(sop_id) DO UPDATE SET content=excluded.content,revision=excluded.revision',
+                   (sop_id, json.dumps(value), expected_revision + 1))
+        return bill_record(db, sop, version)
+
+
 @app.post('/teams/{team_id}/sops', status_code=201)
 def create_sop(team_id: str, body: SOPInput, user=Depends(current_user)):
     sop_id = str(uuid4())
     with database() as db:
-        authoring(db, team_id, user['id'])
+        role = authoring(db, team_id, user['id'])
+        check_cost_write(body, role)
         db.execute('INSERT INTO sops(id,team_id,author_id,draft) VALUES(?,?,?,?)', (sop_id, team_id, user['id'], body.model_dump_json()))
-    return {'id': sop_id, 'revision': 1, 'content': body.model_dump()}
+        seed_legacy_bill(db, sop_id, json.loads(body.model_dump_json()))
+    return {'id': sop_id, 'revision': 1, 'content': sop_content(body.model_dump())}
 
 
 @app.get('/teams/{team_id}/drafts')
@@ -353,14 +439,16 @@ def drafts(team_id: str, user=Depends(current_user)):
 def update_sop(team_id: str, sop_id: str, body: SOPInput, expected_revision: int = Query(ge=1), user=Depends(current_user)):
     with database() as db:
         db.execute('BEGIN IMMEDIATE')
-        authoring(db, team_id, user['id'])
+        role = authoring(db, team_id, user['id'])
+        check_cost_write(body, role)
         find_sop(db, team_id, sop_id, user['id'], author=True)
         if db.execute("SELECT 1 FROM submissions WHERE sop_id=? AND status='pending'", (sop_id,)).fetchone():
             raise HTTPException(409, 'This draft is awaiting owner review')
         result = db.execute('UPDATE sops SET draft=?,revision=revision+1 WHERE id=? AND revision=?', (body.model_dump_json(), sop_id, expected_revision))
         if result.rowcount != 1:
             raise HTTPException(409, 'Draft changed; reload before saving')
-    return {'id': sop_id, 'revision': expected_revision + 1, 'content': body.model_dump()}
+        seed_legacy_bill(db, sop_id, json.loads(body.model_dump_json()))
+    return {'id': sop_id, 'revision': expected_revision + 1, 'content': sop_content(body.model_dump())}
 
 
 @app.post('/teams/{team_id}/sops/{sop_id}/publish', status_code=201)
@@ -422,7 +510,7 @@ def review_queue(team_id: str, user=Depends(current_user)):
     with database() as db:
         membership(db, team_id, user['id'], owner=True)
         rows = db.execute("SELECT sub.*,u.email AS author_email FROM submissions sub JOIN sops s ON s.id=sub.sop_id JOIN users u ON u.id=sub.submitted_by WHERE s.team_id=? AND sub.status='pending' ORDER BY sub.submitted_at", (team_id,)).fetchall()
-        return [{**dict(r), 'content': json.loads(r['content']), 'costing': recipe_cost(json.loads(r['content']))} for r in rows]
+        return [{**dict(r), 'content': sop_content(json.loads(r['content']))} for r in rows]
 
 
 @app.post('/teams/{team_id}/submissions/{submission_id}/approve')

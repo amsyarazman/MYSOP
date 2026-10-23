@@ -8,7 +8,7 @@ Start it inside the cloud checkout with `bash scripts/start.sh`. It listens on p
 
 ## Open the working app on your computer
 
-1. Clone `https://github.com/amsyarazman/MYSOP.git`. While the source pull request is under review, use `git clone --branch codex/mysop-source-review https://github.com/amsyarazman/MYSOP.git`. Once it is merged, a normal clone of `main` contains the app. If you already have a working Mac copy, follow [UPDATE_MAC.md](UPDATE_MAC.md) first to preserve your saved data.
+1. Clone `https://github.com/amsyarazman/MYSOP.git`. While the version 0.4 pull request is under review, use `git clone --branch codex/mysop-v04-owner-bom https://github.com/amsyarazman/MYSOP.git`. Once both source-import and version 0.4 pull requests are merged, a normal clone of `main` contains the updated app. If you already have a working Mac copy, follow [UPDATE_MAC.md](UPDATE_MAC.md) first to preserve your saved data.
 2. Install **Python 3.12 or newer** if it is not already installed.
 3. Open a terminal in the cloned `MYSOP` folder and use the commands for your operating system below.
 4. Keep the server terminal open. In a browser **on that same computer**, enter `http://localhost:8000` in the address bar. This local address works after you start the app on your own computer; it is not a preview of the cloud container.
@@ -67,7 +67,7 @@ The second command requires the optional packages in `requirements-browser.txt` 
 
 ## Save the source to GitHub
 
-The editable source is on `codex/mysop-source-review`, retaining the original `main` commit and the source-archive commit. Use a pull request to review it before merging. For later edits, work in an existing clone and create a new branch:
+The editable source is on `codex/mysop-v04-owner-bom`, retaining the original `main` commit and the source-archive commit. Use a pull request to review it before merging. For later edits, work in an existing clone and create a new branch:
 
 ```bash
 git switch -c my-change

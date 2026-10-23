@@ -1,6 +1,6 @@
 # MYSOP — a shared kitchen playbook
 
-A responsive Python web app for phone and kitchen tablet use: sign in, find food/drink recipes, create a guided SOP with ingredient costs, submit it for review, approve it, and acknowledge updates. FastAPI serves the web interface and API; SQLite persists teams, versioned recipes, review history, live events and acknowledgments. No Node build, API keys or external database are required.
+A responsive Python web app for phone and kitchen tablet use: sign in, find food/drink recipes, create a guided SOP, maintain owner-only costs, submit it for review, approve it, and acknowledge updates. FastAPI serves the web interface and API; SQLite persists teams, versioned recipes, review history, live events and acknowledgments. No Node build, API keys or external database are required.
 
 ![MYSOP recipe collection](docs/preview-desktop.png)
 
@@ -27,7 +27,7 @@ Already using MYSOP on a Mac? Follow [Update your Mac without losing saved data]
 
 1. **Sign in or register.** Passwords require at least 10 characters. A signed-in user creates a team and becomes its owner, or joins using a single-use invitation.
 2. **Assign access.** Under **Team & invitations**, owners invite **supervisors** or **staff**, and can change existing non-owner members between these roles. Invitations expire in 24 hours. They are bearer invitations shared manually; no email is sent.
-3. **Create an SOP.** Owners and supervisors choose Food or Drink, then follow four guided steps: **Basics → Ingredients & costing → Method & safety → Review**. A complete SOP requires a title, servings, ingredients with quantities/units, and ordered preparation steps. Allergen and safety fields are available. Complete the guide to save a private draft.
+3. **Create an SOP.** Owners and supervisors choose Food or Drink, then follow four guided steps: **Basics → Ingredients → Method & safety → Review**. A complete SOP requires a title, servings, ingredients with quantities/units, and ordered preparation steps. Allergen and safety fields are available. Complete the guide to save a private draft.
 4. **Submit for approval.** Supervisors submit a saved/new draft to the owner. Submitted revisions are locked against edits while pending. Staff cannot view private drafts or pending submissions, and supervisors cannot publish directly.
 5. **Review.** The owner opens **Approvals** and checks the exact submitted snapshot, ingredients, cost, method and safety notes. **Approve & publish** creates an immutable team version; **Request changes** requires a note. The supervisor sees that note in My drafts, revises and resubmits. Owners can also create and publish their own recipes directly.
 6. **Prepare consistently.** The team browses the published collection, filters Food/Drinks and searches names/descriptions. Recipe detail includes ingredients, costs, allergens, safety notes and all instructions. **Start preparation** provides large step-by-step controls and progress for kitchen tablets. Progress is temporary, separate from acknowledgment.
@@ -36,13 +36,21 @@ Already using MYSOP on a Mac? Follow [Update your Mac without losing saved data]
 
 Existing `member` accounts migrate to **staff**. Owners can promote them under Team & invitations. The additive database upgrade preserves existing users, drafts and published versions; legacy recipes remain visible. Back up existing data before upgrading a deployed instance. Owner transfer/removal is not part of this version.
 
-## Ingredient costing
+## Owner-only Bill of Materials
 
-For each ingredient, enter the recipe **quantity** and **unit**. Optionally enter both **pack size in the same unit** and **pack price**. There is no automatic conversion between g/kg, ml/l, pieces or currencies. Choose MYR, SGD, USD, EUR or GBP per recipe; all its ingredient prices use that currency.
+Open a saved SOP or an approval submission as the **team owner**, then choose **Bill of Materials**. This separate window contains ingredient pack sizes/prices, a currency selector and custom **other costs per serving**, such as packaging, labour and overhead. Owners can maintain costs for supervisor-authored SOPs too. Staff and supervisors cannot read or write the costing API. Normal SOP, draft, review and version-history responses omit prices, costing totals and currency for every role.
 
-Example: 200 ml milk from a 1,000 ml pack costing MYR 8.00 costs MYR 1.60. Another 20 g coffee from a 1,000 g pack costing MYR 60.00 costs MYR 1.20. The recipe totals MYR 2.80; for two servings, MYR 1.40 each.
+Enter ingredient pack size in the same unit as the recipe quantity and the price per pack; there is no automatic unit or currency conversion. Choose MYR, SGD, USD, EUR or GBP per bill. The server calculates using decimal arithmetic and rounds totals to two places. The window labels live client calculations as estimates until saved. Missing prices produce **Cost incomplete** rather than zero; explicitly free ingredients and zero other costs are supported.
 
-The server calculates with decimal arithmetic and rounds totals to two places. The editor shows a provisional estimate; published/review detail uses server calculations. If a price is unknown, leave both pack fields empty: the app shows **Cost incomplete** and a known subtotal, rather than treating missing costs as zero. Zero-priced ingredients are allowed explicitly. Prices describe the submitted/published snapshot; editing a draft does not alter older costs. These are ingredient costs only, excluding labour, waste, tax and overhead.
+Example: milk costs MYR 1.60 and coffee MYR 1.20 for a two-serving recipe, giving MYR 2.80 in ingredients. Packaging at MYR 0.35 per serving and labour at MYR 0.50 per serving add MYR 1.70 per recipe. The full total is **MYR 4.50 per recipe / MYR 2.25 per serving**.
+
+Bills are working prices, separate from immutable published SOP instructions. Updating a price does not publish a new SOP or reset staff acknowledgments. Selecting an older SOP version uses that version's quantities with current working rates; this is not a historical financial ledger. Rates match by exact ingredient name and unit, and repeated ingredients share one pack rate. A renamed material or changed unit needs a corresponding rate. Conflicting concurrent bill saves return 409 rather than overwrite another owner's changes. Existing saved prices are retained during the additive database upgrade; original publication snapshots remain unchanged.
+
+## Photos and the staff SOP view
+
+The Basics step accepts a JPEG, PNG or WebP photo up to 20 MB. The browser centre-crops it to **1:1**, scales it to **512 × 512**, and compresses it to **150 KB or less**. The server validates and re-encodes the square JPEG, discarding original metadata. A preview and Remove photo control are available. Photos are optional and stored with the SOP in SQLite, so database backups include them; no external image host is needed. Publishing a new photo follows normal SOP version/approval rules.
+
+Staff see a vertical photo, ingredient list and numbered procedure without prices. **Staff measure** optionally displays an operational instruction such as “Fill cup to Line A” in place of the numeric quantity; the numeric amount still drives owner costing. Allergens and safety notes remain available. Content is divided into **Next / Back pages** fitted to the viewport, including long steps and notes, without shrinking text or requiring scrolling inside the SOP reader. Page counts adjust on resize/rotation. Keyboard Left/Right arrows also navigate pages. Authoring, owner review and costing forms can scroll.
 
 ## Access and API
 
@@ -57,6 +65,7 @@ HTTP requests use `Authorization: Bearer <access_token>` from `POST /auth/login`
 | Directly publish own SOP | Yes | No | No |
 | View team acknowledgment reports | Yes | Yes | No |
 | Invite/change non-owner member roles | Yes | No | No |
+| Read/edit Bill of Materials and other costs | Yes | No | No |
 
 Core endpoints (prefix with `/teams/{team_id}`):
 
@@ -74,9 +83,11 @@ Core endpoints (prefix with `/teams/{team_id}`):
 | `GET /sops/{id}/acknowledgments` | Latest-version team acknowledgment report |
 | `POST /invitations` | Invite with `{"role":"staff"}` or `{"role":"supervisor"}` |
 | `GET /members`, `PATCH /members/{id}` | Owner lists team / assigns a non-owner role |
+| `GET /sops/{id}/bom?version=N` | Owner reads current working costs for a published version, or omit version for the draft |
+| `PUT /sops/{id}/bom?expected_revision=N` | Owner saves `currency`, `prices`, and `other_costs` (`name`, `per_serving`); optional `version=N` selects quantities |
 | `GET /events?after=N`, WebSocket `/live?after=N` | Durable team event feed |
 
-`POST /teams/join` consumes `{"invitation_token":"..."}`. The full schemas, including optional `pack_quantity`, `pack_cost` and `currency`, are documented at `/docs`. Amounts in stored recipe snapshots may be decimal strings.
+`POST /teams/join` consumes `{"invitation_token":"..."}`. The Bill of Materials schemas, including `pack_quantity`, `pack_cost`, `currency` and per-serving extras, are documented at `/docs`. Amounts in stored recipe snapshots may be decimal strings.
 
 ## Live updates
 
@@ -95,12 +106,13 @@ In-app live updates require connectivity. Native mobile background push, offline
 .venv/bin/python scripts/browser_smoke.py
 ```
 
-The browser check uses three isolated browser sessions at desktop, tablet and phone sizes. It starts/stops its own server on port 8011 with a temporary database. It verifies login, role invitations, guided creation/costing, draft privacy, supervisor submission, owner return/revision/approval, live publication delivery, staff preparation, acknowledgment persistence/reporting and shared-device sign-out. Screenshots come from that real run:
+The browser check uses three isolated browser sessions at desktop, tablet and phone sizes. It starts/stops its own server on port 8011 with a temporary database. It verifies login, role invitations, guided authoring, square photo upload, owner-only costing, per-serving extras, long SOP pagination, draft privacy, supervisor submission, owner return/revision/approval, live publication delivery, staff preparation, acknowledgment persistence/reporting and shared-device sign-out. Screenshots come from that real run:
 
 - [Recipe collection](docs/preview-desktop.png)
 - [Phone collection](docs/preview-mobile.png)
 - [Owner review](docs/preview-approval.png)
 - [Staff recipe detail](docs/preview-staff.png)
+- [Owner Bill of Materials](docs/preview-bom.png)
 
 Python tests cover approval and role boundaries, team isolation, stale revisions, immutable versions, acknowledgments, cost validation/rounding, existing database migration, auth, durable replay and static assets.
 
